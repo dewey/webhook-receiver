@@ -52,7 +52,7 @@ func (s *service) Post(text string, author string, url string) error {
 			}
 		}
 	}
-	tweetBody := html.UnescapeString("”" + strings.Join(summaryTokens, " ") + "...“" + " ☞ " + "\n\n" + url)
+	tweetBody := html.UnescapeString("”" + strings.Join(summaryTokens, " ") + "...“" + "\n\n" + url)
 	t, resp, err := s.c.Statuses.Update(fmt.Sprintf("%s", tweetBody), &twitter.StatusUpdateParams{
 		TweetMode: "extended",
 	})
