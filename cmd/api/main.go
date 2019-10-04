@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dewey/webhook-receiver/service/fetcher"
+	"github.com/dewey/webhook-receiver/service/listener"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/go-chi/chi"
@@ -29,7 +31,7 @@ func (h *maxBytesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	fs := flag.NewFlagSet("wr", flag.ExitOnError)
+	fs := flag.NewFlagSet("webhook-receiver", flag.ExitOnError)
 	var (
 		environment = fs.String("environment", "develop", "the environment we are running in")
 		port        = fs.String("port", "8080", "the port archivepipe is running on")
@@ -46,17 +48,6 @@ func main() {
 		*port = os.Getenv("PORT")
 	}
 
-	// var t = &http.Transport{
-	// 	Dial: (&net.Dialer{
-	// 		Timeout: 5 * time.Second,
-	// 	}).Dial,
-	// 	TLSHandshakeTimeout: 5 * time.Second,
-	// }
-	// var c = &http.Client{
-	// 	Timeout:   time.Second * 10,
-	// 	Transport: t,
-	// }
-
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	switch strings.ToLower(*environment) {
 	case "development":
@@ -72,7 +63,15 @@ func main() {
 	// Register Prometheus metrics
 	r.Handle("/metrics", promhttp.Handler())
 
-	level.Info(l).Log("msg", fmt.Sprintf("archivepipe api is running on :%s", *port), "environment", *environment)
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("webhook-receiver"))
+	})
+
+	listenerService := listener.NewService(l)
+	fetcherService := fetcher.NewService(l)
+	r.Mount("/incoming-hooks", listener.NewHandler(*listenerService, fetcherService))
+
+	level.Info(l).Log("msg", fmt.Sprintf("webhook-receiver is running on :%s", *port), "environment", *environment)
 
 	// Set up webserver and and set max file limit to 50MB
 	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
