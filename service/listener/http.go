@@ -8,22 +8,24 @@ import (
 	"time"
 
 	"github.com/dewey/webhook-receiver/service/fetcher"
+	"github.com/dewey/webhook-receiver/service/notifier"
 	"github.com/go-chi/chi"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 )
 
 // NewHandler initializes a new archiver API handler
-func NewHandler(ls service, fs fetcher.Service) *chi.Mux {
+func NewHandler(ls service, fs fetcher.Service, ns notifier.Service) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Group(func(r chi.Router) {
-		r.Post("/netlify/{uuid}", netlifyHookHandler(ls, fs))
+		r.Post("/netlify/{uuid}", netlifyHookHandler(ls, fs, ns))
 	})
 
 	return r
 }
 
-func netlifyHookHandler(s service, fs fetcher.Service) http.HandlerFunc {
+func netlifyHookHandler(s service, fs fetcher.Service, ns notifier.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var np netlifyPayload
 		if err := json.NewDecoder(r.Body).Decode(&np); err != nil {
@@ -42,7 +44,7 @@ func netlifyHookHandler(s service, fs fetcher.Service) http.HandlerFunc {
 			items, err := fs.Entries("https://annoying.technology/index.xml")
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
+				level.Error(s.l).Log("err", errors.Wrap(err, "parsing feed"))
 				return
 			}
 
@@ -77,6 +79,11 @@ func netlifyHookHandler(s service, fs fetcher.Service) http.HandlerFunc {
 					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
 					_, err := f.WriteString(item.GUID + "\n")
 					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						level.Error(s.l).Log("err", err)
+						return
+					}
+					if err := ns.Post(item.Description, item.Author.Name, item.Link); err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
 						level.Error(s.l).Log("err", err)
 						return
