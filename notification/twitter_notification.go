@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"html"
-	"github.com/go-kit/kit/log"
 	"net/http"
 	"strings"
+
+	"github.com/go-kit/kit/log"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/go-kit/kit/log/level"
@@ -58,6 +59,7 @@ func (s *repository) Post(text string, author string, url string) error {
 		level.Error(s.l).Log("err", "unexpected status code from twitter", "status_code", resp.StatusCode)
 		return errors.New("unexpected status code from twitter")
 	}
+	// TODO(dewey): Get this URL from the Twitter API tokens
 	level.Info(s.l).Log("msg", "tweet successfully sent", "id", t.IDStr, "url", fmt.Sprintf("https://twitter.com/annoyingfeed/status/%s", t.IDStr))
 	return nil
 }
