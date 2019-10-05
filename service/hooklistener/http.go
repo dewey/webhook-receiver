@@ -87,6 +87,9 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 						level.Error(s.l).Log("err", err)
 						return
 					}
+					// For each iteration we only send one notification even if there are more cache misses (aka. unsent tweets). This acts
+					// as a natural rate limit and jittering and they are more spread out.
+					break
 				}
 			}
 			w.WriteHeader(http.StatusAccepted)

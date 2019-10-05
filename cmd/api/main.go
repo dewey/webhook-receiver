@@ -40,6 +40,7 @@ func main() {
 		twitterUsername          = fs.String("twitter-username", "annoyingfeed", "the twitter username you are connecting to")
 		feedURL                  = fs.String("feed-url", "https://annoying.technology/index.xml", "the direct url to the feed index")
 		cacheFilePath            = fs.String("cache-file-path", "~/cache", "the path to the cache file, to prevent duplicate notifications")
+		hookToken                = fs.String("hook-token", "changeme", "the secret token for the hook, to prevent other people from hitting the hook")
 	)
 
 	ff.Parse(fs, os.Args[1:],
@@ -85,7 +86,7 @@ func main() {
 
 	fr := feed.NewRepository(l)
 	nr := notification.NewRepository(l, client)
-	listenerService := hooklistener.NewService(l, fr, nr, *feedURL, *cacheFilePath)
+	listenerService := hooklistener.NewService(l, fr, nr, *feedURL, *cacheFilePath, *hookToken)
 
 	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))
 
