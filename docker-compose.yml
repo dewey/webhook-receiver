@@ -1,0 +1,18 @@
+version: "3"
+services:
+  app:
+    image: docker.pkg.github.com/dewey/webhook-receiver/dewey-webhook-receiver:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - WR_ENVIRONMENT=development
+      - WR_PORT=8080
+      - WR_CACHE_FILE_PATH=/cache
+      - WR_FEED_URL=https://annoying.technology/index.xml
+      - WR_HOOK_TOKEN=changeme
+      - WR_TWITTER_CONSUMER_KEY=changeme
+      - WR_TWITTER_CONSUMER_SECRET_KEY=changeme
+      - WR_TWITTER_ACCESS_TOKEN=changeme
+      - WR_TWITTER_ACCESS_TOKEN_SECRET=changeme
+    volumes:
+      - /home/ubuntu/services/webhook-receiver/cache:/cache
