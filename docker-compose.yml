@@ -8,7 +8,7 @@ services:
       - WR_ENVIRONMENT=development
       - WR_PORT=8080
       - WR_CACHE_FILE_PATH=/cache
-      - WR_FEED_URL=https://annoying.technology/index.xml
+      - WR_FEED_URL=https://example.com/feed.xml
       - WR_HOOK_TOKEN=changeme
       - WR_TWITTER_CONSUMER_KEY=changeme
       - WR_TWITTER_CONSUMER_SECRET_KEY=changeme
