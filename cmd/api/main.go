@@ -7,18 +7,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dewey/webhook-receiver/service/fetcher"
-	"github.com/dewey/webhook-receiver/service/listener"
-	"github.com/dewey/webhook-receiver/service/notifier"
+	"github.com/dewey/webhook-receiver/feed"
+	"github.com/dewey/webhook-receiver/notification"
+	"github.com/dewey/webhook-receiver/service/hooklistener"
 	"github.com/dghubble/go-twitter/twitter"
-
-	"github.com/go-chi/chi"
-
 	"github.com/dghubble/oauth1"
+	"github.com/go-chi/chi"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-
-	_ "github.com/lib/pq"
 	"github.com/peterbourgon/ff"
 )
 
@@ -42,6 +38,8 @@ func main() {
 		twitterAccessToken       = fs.String("twitter-access-token", "changeme", "the twitter consumer key")
 		twitterAccessTokenSecret = fs.String("twitter-access-token-secret", "changeme", "the twitter consumer secret key")
 		twitterUsername          = fs.String("twitter-username", "annoyingfeed", "the twitter username you are connecting to")
+		feedURL                  = fs.String("feed-url", "https://annoying.technology/index.xml", "the direct url to the feed index")
+		cacheFilePath            = fs.String("cache-file-path", "~/cache", "the path to the cache file, to prevent duplicate notifications")
 	)
 
 	ff.Parse(fs, os.Args[1:],
@@ -68,11 +66,9 @@ func main() {
 	config := oauth1.NewConfig(*twitterConsumerKey, *twitterConsumerSecretKey)
 	token := oauth1.NewToken(*twitterAccessToken, *twitterAccessTokenSecret)
 	httpClient := config.Client(oauth1.NoContext, token)
-
-	// Twitter client
 	client := twitter.NewClient(httpClient)
 
-	// User Show
+	// Get user information for setup testing
 	user, resp, err := client.Users.Show(&twitter.UserShowParams{
 		ScreenName: *twitterUsername,
 	})
@@ -87,10 +83,11 @@ func main() {
 		w.Write([]byte("webhook-receiver"))
 	})
 
-	listenerService := listener.NewService(l)
-	fetcherService := fetcher.NewService(l)
-	notifierService := notifier.NewService(l, client)
-	r.Mount("/incoming-hooks", listener.NewHandler(*listenerService, fetcherService, notifierService))
+	fr := feed.NewRepository(l)
+	nr := notification.NewRepository(l, client)
+	listenerService := hooklistener.NewService(l, fr, nr, *feedURL, *cacheFilePath)
+
+	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))
 
 	level.Info(l).Log("msg", fmt.Sprintf("webhook-receiver is running on :%s", *port), "environment", *environment)
 

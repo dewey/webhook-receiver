@@ -1,4 +1,4 @@
-package listener
+package hooklistener
 
 import (
 	"bufio"
@@ -7,25 +7,23 @@ import (
 	"os"
 	"time"
 
-	"github.com/dewey/webhook-receiver/service/fetcher"
-	"github.com/dewey/webhook-receiver/service/notifier"
 	"github.com/go-chi/chi"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 )
 
 // NewHandler initializes a new archiver API handler
-func NewHandler(ls service, fs fetcher.Service, ns notifier.Service) *chi.Mux {
+func NewHandler(s service) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Group(func(r chi.Router) {
-		r.Post("/netlify/{uuid}", netlifyHookHandler(ls, fs, ns))
+		r.Post("/netlify/{uuid}", netlifyHookHandler(s))
 	})
 
 	return r
 }
 
-func netlifyHookHandler(s service, fs fetcher.Service, ns notifier.Service) http.HandlerFunc {
+func netlifyHookHandler(s service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var np netlifyPayload
 		if err := json.NewDecoder(r.Body).Decode(&np); err != nil {
@@ -40,15 +38,16 @@ func netlifyHookHandler(s service, fs fetcher.Service, ns notifier.Service) http
 			level.Error(s.l).Log("err", err)
 			return
 		}
+		// TODO(dewey): This should not be in the handler, but for now it's good enough
 		if valid {
-			items, err := fs.Entries("https://annoying.technology/index.xml")
+			items, err := s.fr.Entries(s.feedURL)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				level.Error(s.l).Log("err", errors.Wrap(err, "parsing feed"))
 				return
 			}
 
-			f, err := os.OpenFile("/Users/philipp/mod/github.com/dewey/webhook-receiver/cache", os.O_CREATE|os.O_RDWR, 0644)
+			f, err := os.OpenFile(s.cacheFilePath, os.O_CREATE|os.O_RDWR, 0644)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				level.Error(s.l).Log("err", err)
@@ -83,7 +82,7 @@ func netlifyHookHandler(s service, fs fetcher.Service, ns notifier.Service) http
 						level.Error(s.l).Log("err", err)
 						return
 					}
-					if err := ns.Post(item.Description, item.Author.Name, item.Link); err != nil {
+					if err := s.nr.Post(item.Description, item.Author.Name, item.Link); err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
 						level.Error(s.l).Log("err", err)
 						return

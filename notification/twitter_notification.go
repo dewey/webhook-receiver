@@ -1,37 +1,32 @@
-package notifier
+package notification
 
 import (
 	"bytes"
 	"fmt"
 	"html"
+	"github.com/go-kit/kit/log"
 	"net/http"
 	"strings"
 
 	"github.com/dghubble/go-twitter/twitter"
-	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 )
 
-// Service is an interface for a notifier service
-type Service interface {
-	Post(text string, author string, url string) error
-}
-
-type service struct {
+type repository struct {
 	l log.Logger
 	c *twitter.Client
 }
 
-// NewService initializes a new notifier service
-func NewService(l log.Logger, c *twitter.Client) *service {
-	return &service{
+// NewRepository initializes a new Twitter notifier repository
+func NewRepository(l log.Logger, c *twitter.Client) *repository {
+	return &repository{
 		l: l,
 		c: c,
 	}
 }
 
-func (s *service) Post(text string, author string, url string) error {
+func (s *repository) Post(text string, author string, url string) error {
 	// We split into words, and add as many words so we stay routhly under 100 characters for the Tweet
 	var length int
 	var summaryTokens []string
