@@ -40,6 +40,7 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 		}
 		// TODO(dewey): This should not be in the handler, but for now it's good enough
 		if valid {
+			level.Info(s.l).Log("msg", "received valid token on webhook endpoint", "uuid", chi.URLParam(r, "uuid"))
 			items, err := s.fr.Entries(s.feedURL)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -72,11 +73,19 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 				return
 			}
 
+			// If there's a already a tweet for today in the cache, we do nothing
+			if s.hasTweetedToday(m) {
+				w.WriteHeader(http.StatusAccepted)
+				level.Info(s.l).Log("msg", "there's already a tweet today, skipping")
+				return
+			}
+
 			// If item not in cache yet, we can send a notification
+			t := time.Now()
 			for _, item := range items {
 				if _, ok := m[item.GUID]; !ok {
 					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
-					_, err := f.WriteString(item.GUID + "\n")
+					_, err := f.WriteString(t.Format("2006-01-02") + ":" + item.GUID + "\n")
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
 						level.Error(s.l).Log("err", err)
@@ -93,7 +102,6 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 				}
 			}
 			w.WriteHeader(http.StatusAccepted)
-			level.Info(s.l).Log("msg", "received valid token on webhook endpoint", "uuid", chi.URLParam(r, "uuid"))
 			return
 		}
 	}
