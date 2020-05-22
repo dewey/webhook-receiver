@@ -73,10 +73,15 @@ func main() {
 	user, resp, err := client.Users.Show(&twitter.UserShowParams{
 		ScreenName: *twitterUsername,
 	})
+	if err != nil {
+		level.Error(l).Log("err", "error getting user information from twitter")
+		return
+	}
 	if resp.StatusCode != http.StatusOK {
 		level.Error(l).Log("err", "status code not 200, check credentials and api.twitterstat.us")
+		return
 	}
-	level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "http_status", resp.StatusCode)
+	level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "twitter_user", user.ScreenName ,"http_status", resp.StatusCode)
 
 	// Set up HTTP API
 	r := chi.NewRouter()
@@ -85,7 +90,7 @@ func main() {
 	})
 
 	fr := feed.NewRepository(l)
-	nr := notification.NewRepository(l, client)
+	nr := notification.NewRepository(l, client, user)
 	listenerService := hooklistener.NewService(l, fr, nr, *feedURL, *cacheFilePath, *hookToken)
 
 	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))

@@ -17,13 +17,15 @@ import (
 type repository struct {
 	l log.Logger
 	c *twitter.Client
+	tu *twitter.User
 }
 
 // NewRepository initializes a new Twitter notifier repository
-func NewRepository(l log.Logger, c *twitter.Client) *repository {
+func NewRepository(l log.Logger, c *twitter.Client, tu *twitter.User) *repository {
 	return &repository{
 		l: l,
 		c: c,
+		tu: tu,
 	}
 }
 
@@ -59,7 +61,6 @@ func (s *repository) Post(text string, author string, url string) error {
 		level.Error(s.l).Log("err", "unexpected status code from twitter", "status_code", resp.StatusCode)
 		return errors.New("unexpected status code from twitter")
 	}
-	// TODO(dewey): Get this URL from the Twitter API tokens
-	level.Info(s.l).Log("msg", "tweet successfully sent", "id", t.IDStr, "url", fmt.Sprintf("https://twitter.com/annoyingfeed/status/%s", t.IDStr))
+	level.Info(s.l).Log("msg", "tweet successfully sent", "id", t.IDStr, "url", fmt.Sprintf("https://twitter.com/%s/status/%s", s.tu.ScreenName, t.IDStr))
 	return nil
 }
