@@ -56,14 +56,22 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 			}
 
 			// Read cache file into map
-			m := make(map[string]struct{})
+			m := make(map[string]time.Time)
 			defer f.Close()
 
 			// Add all unique entries of cache file (they should be unique anyway) to map
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
-				if _, ok := m[scanner.Text()]; !ok {
-					m[scanner.Text()] = struct{}{}
+				cacheTimeStamp, key, err := s.getCacheKey(scanner.Text())
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					level.Error(s.l).Log("err", err)
+					return
+				}
+
+				// If URL doesn't exist in cache, set cache entry to url:time.Time in map
+				if _, ok := m[key]; !ok {
+					m[key] = cacheTimeStamp
 				}
 			}
 
