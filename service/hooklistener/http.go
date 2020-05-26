@@ -88,25 +88,26 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 				return
 			}
 
-			// If item not in cache yet, we can send a notification
 			t := time.Now()
-			for _, item := range items {
-				if _, ok := m[item.GUID]; !ok {
-					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
-					_, err := f.WriteString(t.Format("2006-01-02") + ":" + item.GUID + "\n")
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						level.Error(s.l).Log("err", err)
-						return
-					}
-					if err := s.nr.Post(item.Description, item.Author.Name, item.Link); err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						level.Error(s.l).Log("err", err)
-						return
-					}
-					// For each iteration we only send one notification even if there are more cache misses (aka. unsent tweets). This acts
-					// as a natural rate limit and jittering and they are more spread out.
-					break
+			item, isCached, err := s.getNextUncachedFeedItem(items, m)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				level.Error(s.l).Log("err", err)
+				return
+			}
+			// If item not in cache yet, we can send a notification and add it to the cache
+			if !isCached {
+				level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
+				_, err := f.WriteString(t.Format("2006-01-02") + ":" + item.GUID + "\n")
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					level.Error(s.l).Log("err", err)
+					return
+				}
+				if err := s.nr.Post(item.Description, item.Author.Name, item.Link); err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					level.Error(s.l).Log("err", err)
+					return
 				}
 			}
 			w.WriteHeader(http.StatusAccepted)
@@ -115,6 +116,7 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 	}
 }
 
+// netlifyPayload contains the payload the Netlify webhook sends to us
 type netlifyPayload struct {
 	ID                  string        `json:"id"`
 	SiteID              string        `json:"site_id"`

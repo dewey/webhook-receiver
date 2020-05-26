@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mmcdole/gofeed"
+
 	"github.com/go-kit/kit/log"
 )
 
@@ -75,6 +77,74 @@ func TestGetCacheKey(t *testing.T) {
 			}
 			if outURL != tt.outURL {
 				t.Errorf("got %s, want %s", outURL, tt.outURL)
+			}
+		})
+	}
+}
+
+var isCachedTests = []struct {
+	cache       map[string]time.Time
+	items       []*gofeed.Item
+	outIsCached bool
+	outNewItem  gofeed.Item
+}{
+	{cacheMapOne, []*gofeed.Item{
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/1/",
+		},
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/5/",
+		},
+	}, true, gofeed.Item{}},
+	{cacheMapOne, []*gofeed.Item{
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/1/",
+		},
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/6/",
+		},
+	}, false, gofeed.Item{GUID: "https://annoying.technology/posts/6/"}},
+	{cacheMapOne, []*gofeed.Item{
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/1/",
+		},
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/6/",
+		},
+		&gofeed.Item{
+			GUID: "https://annoying.technology/posts/7/",
+		},
+	}, false, gofeed.Item{GUID: "https://annoying.technology/posts/6/"}},
+}
+
+func TestIsCached(t *testing.T) {
+	service := NewService(log.NewNopLogger(), nil, nil, "", "", "")
+	for _, tt := range isCachedTests {
+		t.Run("testing cache checking function", func(t *testing.T) {
+			isCached := service.isCached(tt.items, tt.cache)
+			if tt.outIsCached != isCached {
+				t.Errorf("got %t, want %t", isCached, tt.outIsCached)
+			}
+		})
+	}
+}
+
+func TestGetNextUncachedFeedItem(t *testing.T) {
+	service := NewService(log.NewNopLogger(), nil, nil, "", "", "")
+	for _, tt := range isCachedTests {
+		t.Run("testing cache fetching function", func(t *testing.T) {
+			newItem, isCached, err := service.getNextUncachedFeedItem(tt.items, tt.cache)
+			if err != nil {
+				t.Error("got error that shouldn't be there", err)
+			}
+			if tt.outIsCached != isCached {
+				t.Errorf("got %t, want %t", isCached, tt.outIsCached)
+			}
+			// If it's not all cached there's a new item
+			if !isCached {
+				if newItem.GUID != tt.outNewItem.GUID {
+					t.Errorf("got %s, want %s", newItem.GUID, tt.outNewItem.GUID)
+				}
 			}
 		})
 	}

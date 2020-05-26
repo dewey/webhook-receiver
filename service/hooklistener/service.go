@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/mmcdole/gofeed"
+
 	"github.com/dewey/webhook-receiver/feed"
 	"github.com/dewey/webhook-receiver/notification"
 	"github.com/go-kit/kit/log"
@@ -64,6 +66,29 @@ func (s *service) getCacheKey(line string) (time.Time, string, error) {
 		return time.Time{}, line, nil
 	}
 	return time.Time{}, "", errors.New("couldn't get cache key from cache line")
+}
+
+// isCached checks if feed items are already cached
+func (s *service) isCached(items []*gofeed.Item, cache map[string]time.Time) bool {
+	for _, item := range items {
+		if _, ok := cache[item.GUID]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// getUncachedFeedItem returns a feed item if there's something new and uncached
+func (s *service) getNextUncachedFeedItem(items []*gofeed.Item, cache map[string]time.Time) (*gofeed.Item, bool, error) {
+	// For each iteration we only send one notification even if there are more cache misses (aka. unsent tweets). This acts
+	// as a natural rate limit and jittering and they are more spread out.
+	for _, item := range items {
+		if _, ok := cache[item.GUID]; !ok {
+			// Item doesn't exist in cache yet, it still needs to be posted
+			return item, false, nil
+		}
+	}
+	return nil, true, nil
 }
 
 // hasTweetedToday checks if something was posted today, if there's already a Tweet it returns true
