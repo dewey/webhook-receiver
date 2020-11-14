@@ -29,6 +29,9 @@ type service struct {
 	feedURL       string
 	cacheFilePath string
 	hookToken     string
+	// tweetLimitHours defines how many hours we look into the past to check if there was a Tweet. If there was
+	// no Tweet within current time - tweetLimitHours we send out a tweet.
+	tweetLimitHours float64
 }
 
 // NewService initializes a new hook listener service
@@ -91,10 +94,10 @@ func (s *service) getNextUncachedFeedItem(items []*gofeed.Item, cache map[string
 	return nil, true, nil
 }
 
-// hasTweetedToday checks if something was posted today, if there's already a Tweet it returns true
-func (s *service) hasTweetedToday(m map[string]time.Time) bool {
+// hasTweetedToday checks if something was posted in the range of configured hours, if there's already a Tweet it returns true
+func (s *service) hasTweetedRecently(m map[string]time.Time) bool {
 	for _, val := range m {
-		if time.Now().Sub(val).Hours() < 24 {
+		if time.Now().Sub(val).Hours() < s.tweetLimitHours {
 			return true
 		} else {
 			// Cache entries with no timestamp are skipped. This is to be backwards compatible with the old

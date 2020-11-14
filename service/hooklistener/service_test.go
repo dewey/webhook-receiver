@@ -35,19 +35,20 @@ var (
 )
 
 var tweetedTests = []struct {
-	name  string
-	cache map[string]time.Time
-	out   bool
+	name            string
+	cache           map[string]time.Time
+	out             bool
+	tweetLimitHours float64
 }{
-	{"all tweeted already, don't send out tweet", cacheMapOne, true},
-	{"today still has to be tweeted", cacheMapTwo, false},
+	{"all tweeted already, don't send out tweet", cacheMapOne, true, 24},
+	{"today still has to be tweeted", cacheMapTwo, false, 12},
 }
 
-func TestHasTweetedToday(t *testing.T) {
+func TestHasTweetedRecently(t *testing.T) {
 	service := NewService(log.NewNopLogger(), nil, nil, "", "", "")
 	for _, tt := range tweetedTests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := service.hasTweetedToday(tt.cache)
+			got := service.hasTweetedRecently(tt.cache)
 			if got != tt.out {
 				t.Errorf("got %t, want %t", got, tt.out)
 			}

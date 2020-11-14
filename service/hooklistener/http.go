@@ -81,8 +81,8 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 				return
 			}
 
-			// If there's a already a tweet for today in the cache, we do nothing
-			if s.hasTweetedToday(m) {
+			// If there's a already a tweet within the defined hours in the cache, we do nothing
+			if s.hasTweetedRecently(m) {
 				w.WriteHeader(http.StatusAccepted)
 				level.Debug(s.l).Log("msg", "there's already a tweet today, skipping")
 				return
