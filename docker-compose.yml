@@ -14,5 +14,7 @@ services:
       - WR_TWITTER_CONSUMER_SECRET_KEY=changeme
       - WR_TWITTER_ACCESS_TOKEN=changeme
       - WR_TWITTER_ACCESS_TOKEN_SECRET=changeme
+      - WR_TWITTER_USERNAME=changeme
+
     volumes:
       - /home/ubuntu/services/webhook-receiver/cache:/cache
