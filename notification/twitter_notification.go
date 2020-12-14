@@ -29,7 +29,11 @@ func NewRepository(l log.Logger, c *twitter.Client, tu *twitter.User) *repositor
 	}
 }
 
-func (s *repository) Post(text string, author string, url string) error {
+func (s *repository) Post(item gofeed.Item) error {
+	var text := item.Description
+	var author := item.Author.Name
+	var url := item.Link
+	
 	// We split into words, and add as many words so we stay routhly under 100 characters for the Tweet
 	var length int
 	var summaryTokens []string
