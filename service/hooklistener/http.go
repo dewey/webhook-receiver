@@ -104,7 +104,7 @@ func netlifyHookHandler(s service) http.HandlerFunc {
 					level.Error(s.l).Log("err", err)
 					return
 				}
-				if err := s.nr.Post(item.Description, item.Author.Name, item.Link); err != nil {
+				if err := s.nr.Post(item); err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					level.Error(s.l).Log("err", err)
 					return
