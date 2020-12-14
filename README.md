@@ -34,6 +34,7 @@ export WR_TWITTER_CONSUMER_KEY=changeme
 export WR_TWITTER_CONSUMER_SECRET_KEY=changeme
 export WR_TWITTER_ACCESS_TOKEN=changeme
 export WR_TWITTER_ACCESS_TOKEN_SECRET=changeme
+export WR_TWITTER_USERNAME=changeme
 ```
 
 
