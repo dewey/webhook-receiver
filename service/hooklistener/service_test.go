@@ -4,9 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/mmcdole/gofeed"
-
-	"github.com/go-kit/kit/log"
 )
 
 var (
