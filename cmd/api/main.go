@@ -12,10 +12,10 @@ import (
 	"github.com/dewey/webhook-receiver/service/hooklistener"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/peterbourgon/ff"
+	"github.com/peterbourgon/ff/v3"
 )
 
 type maxBytesHandler struct {
@@ -81,7 +81,7 @@ func main() {
 		level.Error(l).Log("err", "status code not 200, check credentials and api.twitterstat.us")
 		return
 	}
-	level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "twitter_user", user.ScreenName ,"http_status", resp.StatusCode)
+	level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "twitter_user", user.ScreenName, "http_status", resp.StatusCode)
 
 	// Set up HTTP API
 	r := chi.NewRouter()
