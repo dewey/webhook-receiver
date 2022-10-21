@@ -39,7 +39,7 @@ var tweetedTests = []struct {
 	cache map[string]time.Time
 	out   bool
 }{
-	{"all tweeted already, don't send out tweet", cacheMapOne, true},
+	{"all tweeted already, don't send out tweet", cacheMapOne, false},
 	{"today still has to be tweeted", cacheMapTwo, false},
 }
 
