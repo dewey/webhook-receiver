@@ -94,7 +94,7 @@ func (s *service) getNextUncachedFeedItem(items []*gofeed.Item, cache map[string
 // hasTweetedToday checks if something was posted today, if there's already a Tweet it returns true
 func (s *service) hasTweetedToday(m map[string]time.Time) bool {
 	for _, val := range m {
-		if time.Now().Sub(val).Hours() < 24 {
+		if time.Since(val).Hours() < 24 {
 			return true
 		} else {
 			// Cache entries with no timestamp are skipped. This is to be backwards compatible with the old
