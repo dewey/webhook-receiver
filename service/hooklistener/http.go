@@ -2,7 +2,6 @@ package hooklistener
 
 import (
 	"bufio"
-	"encoding/json"
 	"net/http"
 	"os"
 	"time"
