@@ -15,16 +15,16 @@ import (
 )
 
 type repository struct {
-	l log.Logger
-	c *twitter.Client
+	l  log.Logger
+	c  *twitter.Client
 	tu *twitter.User
 }
 
 // NewRepository initializes a new Twitter notifier repository
 func NewRepository(l log.Logger, c *twitter.Client, tu *twitter.User) *repository {
 	return &repository{
-		l: l,
-		c: c,
+		l:  l,
+		c:  c,
 		tu: tu,
 	}
 }
@@ -51,7 +51,7 @@ func (s *repository) Post(text string, author string, url string) error {
 		}
 	}
 	tweetBody := html.UnescapeString("”" + strings.Join(summaryTokens, " ") + "...“" + "\n\n" + url)
-	t, resp, err := s.c.Statuses.Update(fmt.Sprintf("%s", tweetBody), &twitter.StatusUpdateParams{
+	t, resp, err := s.c.Statuses.Update(tweetBody, &twitter.StatusUpdateParams{
 		TweetMode: "extended",
 	})
 	if err != nil {
