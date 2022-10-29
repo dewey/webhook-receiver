@@ -13,6 +13,8 @@ import (
 )
 
 func Test_mastodonRepository_Post(t *testing.T) {
+	// Only for local development to test posting
+	t.SkipNow()
 	fs := flag.NewFlagSet("webhook-receiver", flag.ExitOnError)
 	var (
 		mastodonClientKey    = fs.String("mastodon-client-key", "changeme", "the mastodon client key")
