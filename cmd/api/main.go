@@ -69,39 +69,50 @@ func main() {
 	}
 	l = log.With(l, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
+	var notifiers []notification.Repository
 	// Set up Twitter client
-	config := oauth1.NewConfig(*twitterConsumerKey, *twitterConsumerSecretKey)
-	token := oauth1.NewToken(*twitterAccessToken, *twitterAccessTokenSecret)
-	httpClient := config.Client(oauth1.NoContext, token)
-	client := twitter.NewClient(httpClient)
+	if *twitterConsumerKey != "" && *twitterAccessTokenSecret != "" && *twitterConsumerSecretKey != "" && *twitterAccessToken != "" {
+		config := oauth1.NewConfig(*twitterConsumerKey, *twitterConsumerSecretKey)
+		token := oauth1.NewToken(*twitterAccessToken, *twitterAccessTokenSecret)
+		httpClient := config.Client(oauth1.NoContext, token)
+		client := twitter.NewClient(httpClient)
 
-	// Get user information for setup testing
-	user, resp, err := client.Users.Show(&twitter.UserShowParams{
-		ScreenName: *twitterUsername,
-	})
-	if err != nil {
-		level.Error(l).Log("err", "error getting user information from twitter")
-		return
+		// Get user information for setup testing
+		user, resp, err := client.Users.Show(&twitter.UserShowParams{
+			ScreenName: *twitterUsername,
+		})
+		if err != nil {
+			level.Error(l).Log("err", "error getting user information from twitter")
+			return
+		}
+		if resp.StatusCode != http.StatusOK {
+			level.Error(l).Log("err", "status code not 200, check credentials and api.twitterstat.us")
+			return
+		}
+		level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "twitter_user", user.ScreenName, "http_status", resp.StatusCode)
+		notifiers = append(notifiers, notification.NewTwitterRepository(l, client, user))
 	}
-	if resp.StatusCode != http.StatusOK {
-		level.Error(l).Log("err", "status code not 200, check credentials and api.twitterstat.us")
-		return
-	}
-	level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "twitter_user", user.ScreenName, "http_status", resp.StatusCode)
-
 	// Setup Mastodon Client
-	cm := mastodon.NewClient(&mastodon.Config{
-		Server:       *mastodonServer,
-		ClientID:     *mastodonClientKey,
-		ClientSecret: *mastodonClientSecret,
-		AccessToken:  *mastodonAccessToken,
-	})
-	clientMastodon, err := cm.GetAccountCurrentUser(context.Background())
-	if err != nil {
-		level.Error(l).Log("err", "error getting user information from mastodon")
+	if *mastodonServer != "" && *mastodonClientKey != "" && *mastodonClientSecret != "" && *mastodonAccessToken != "" {
+		cm := mastodon.NewClient(&mastodon.Config{
+			Server:       *mastodonServer,
+			ClientID:     *mastodonClientKey,
+			ClientSecret: *mastodonClientSecret,
+			AccessToken:  *mastodonAccessToken,
+		})
+		clientMastodon, err := cm.GetAccountCurrentUser(context.Background())
+		if err != nil {
+			level.Error(l).Log("err", "error getting user information from mastodon")
+			return
+		}
+		level.Info(l).Log("msg", "connected to mastodon", "mastodon_user_id", clientMastodon.ID, "mastodon_user", clientMastodon.Username)
+		notifiers = append(notifiers, notification.NewMastodonRepository(l, cm))
+	}
+
+	if len(notifiers) == 0 {
+		level.Error(l).Log("err", "no notifiers are configured. make sure to set up twitter and/or mastodon")
 		return
 	}
-	level.Info(l).Log("msg", "connected to mastodon", "mastodon_user_id", clientMastodon.ID, "mastodon_user", clientMastodon.Username)
 
 	// Set up HTTP API
 	r := chi.NewRouter()
@@ -110,9 +121,6 @@ func main() {
 	})
 
 	fr := feed.NewRepository(l)
-	nr := notification.NewTwitterRepository(l, client, user)
-	nmr := notification.NewMastodonRepository(l, cm)
-	notifiers := []notification.Repository{nr, nmr}
 	listenerService := hooklistener.NewService(l, fr, notifiers, *feedURL, *cacheFilePath, *hookToken)
 
 	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))
@@ -120,7 +128,7 @@ func main() {
 	level.Info(l).Log("msg", fmt.Sprintf("webhook-receiver is running on :%s", *port), "environment", *environment)
 
 	// Set up webserver and and set max file limit to 50MB
-	err = http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
+	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
 	if err != nil {
 		level.Error(l).Log("err", err)
 		return
