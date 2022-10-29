@@ -2,6 +2,7 @@ package notification
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html"
 	"net/http"
@@ -13,22 +14,22 @@ import (
 	"github.com/pkg/errors"
 )
 
-type repository struct {
+type twitterRepository struct {
 	l  log.Logger
 	c  *twitter.Client
 	tu *twitter.User
 }
 
-// NewRepository initializes a new Twitter notifier repository
-func NewRepository(l log.Logger, c *twitter.Client, tu *twitter.User) *repository {
-	return &repository{
+// NewTwitterRepository initializes a new Twitter notifier repository
+func NewTwitterRepository(l log.Logger, c *twitter.Client, tu *twitter.User) *twitterRepository {
+	return &twitterRepository{
 		l:  l,
 		c:  c,
 		tu: tu,
 	}
 }
 
-func (s *repository) Post(text string, author string, url string) error {
+func (s *twitterRepository) Post(ctx context.Context, text string, author string, url string) error {
 	// We split into words, and add as many words so we stay routhly under 100 characters for the Tweet
 	var length int
 	var summaryTokens []string

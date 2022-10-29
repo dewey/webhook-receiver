@@ -25,14 +25,14 @@ type Service interface {
 type service struct {
 	l             log.Logger
 	fr            feed.Repository
-	nr            notification.Repository
+	nr            []notification.Repository
 	feedURL       string
 	cacheFilePath string
 	hookToken     string
 }
 
 // NewService initializes a new hook listener service
-func NewService(l log.Logger, fr feed.Repository, nr notification.Repository, feedURL string, cacheFilePath string, hookToken string) *service {
+func NewService(l log.Logger, fr feed.Repository, nr []notification.Repository, feedURL string, cacheFilePath string, hookToken string) *service {
 	return &service{
 		l:             l,
 		fr:            fr,

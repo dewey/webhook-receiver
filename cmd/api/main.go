@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/mattn/go-mastodon"
 	"github.com/peterbourgon/ff/v3"
 )
 
@@ -38,6 +40,10 @@ func main() {
 		twitterAccessToken       = fs.String("twitter-access-token", "changeme", "the twitter consumer key")
 		twitterAccessTokenSecret = fs.String("twitter-access-token-secret", "changeme", "the twitter consumer secret key")
 		twitterUsername          = fs.String("twitter-username", "annoyingfeed", "the twitter username you are connecting to")
+		mastodonClientKey        = fs.String("mastodon-client-key", "changeme", "the mastodon client key")
+		mastodonClientSecret     = fs.String("mastodon-client-secret", "changeme", "the mastodon client secret")
+		mastodonAccessToken      = fs.String("mastodon-access-token", "changeme", "the mastodon access token")
+		mastodonServer           = fs.String("mastodon-server", "changeme", "the mastodon instance you are using")
 		feedURL                  = fs.String("feed-url", "https://annoying.technology/index.xml", "the direct url to the feed index")
 		cacheFilePath            = fs.String("cache-file-path", "~/cache", "the path to the cache file, to prevent duplicate notifications")
 		hookToken                = fs.String("hook-token", "changeme", "the secret token for the hook, to prevent other people from hitting the hook")
@@ -83,6 +89,20 @@ func main() {
 	}
 	level.Info(l).Log("msg", "connected to twitter", "twitter_user_id", user.IDStr, "twitter_user", user.ScreenName, "http_status", resp.StatusCode)
 
+	// Setup Mastodon Client
+	cm := mastodon.NewClient(&mastodon.Config{
+		Server:       *mastodonServer,
+		ClientID:     *mastodonClientKey,
+		ClientSecret: *mastodonClientSecret,
+		AccessToken:  *mastodonAccessToken,
+	})
+	clientMastodon, err := cm.GetAccountCurrentUser(context.Background())
+	if err != nil {
+		level.Error(l).Log("err", "error getting user information from mastodon")
+		return
+	}
+	level.Info(l).Log("msg", "connected to mastodon", "mastodon_user_id", clientMastodon.ID, "mastodon_user", clientMastodon.Username)
+
 	// Set up HTTP API
 	r := chi.NewRouter()
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -90,8 +110,10 @@ func main() {
 	})
 
 	fr := feed.NewRepository(l)
-	nr := notification.NewRepository(l, client, user)
-	listenerService := hooklistener.NewService(l, fr, nr, *feedURL, *cacheFilePath, *hookToken)
+	nr := notification.NewTwitterRepository(l, client, user)
+	nmr := notification.NewMastodonRepository(l, cm)
+	notifiers := []notification.Repository{nr, nmr}
+	listenerService := hooklistener.NewService(l, fr, notifiers, *feedURL, *cacheFilePath, *hookToken)
 
 	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))
 
