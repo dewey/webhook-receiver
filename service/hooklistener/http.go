@@ -47,10 +47,10 @@ func webHookHandler(s service) http.HandlerFunc {
 				level.Error(s.l).Log("err", err)
 				return
 			}
+			defer f.Close()
 
 			// Read cache file into map
 			m := make(map[string]time.Time)
-			defer f.Close()
 
 			// Add all unique entries of cache file (they should be unique anyway) to map
 			scanner := bufio.NewScanner(f)
@@ -97,11 +97,15 @@ func webHookHandler(s service) http.HandlerFunc {
 					level.Error(s.l).Log("err", err)
 					return
 				}
-				if err := s.nr.Post(item.Description, item.Author.Name, item.Link); err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					level.Error(s.l).Log("err", err)
-					return
+				for _, repository := range s.nr {
+					repo := repository
+					if err := repo.Post(r.Context(), item.Description, item.Author.Name, item.Link); err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						level.Error(s.l).Log("err", err)
+						return
+					}
 				}
+
 			}
 			w.WriteHeader(http.StatusAccepted)
 			return
