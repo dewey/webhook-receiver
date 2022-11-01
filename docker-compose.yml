@@ -15,6 +15,10 @@ services:
       - WR_TWITTER_ACCESS_TOKEN=changeme
       - WR_TWITTER_ACCESS_TOKEN_SECRET=changeme
       - WR_TWITTER_USERNAME=changeme
+      - WR_MASTODON_SERVER=changeme
+      - WR_MASTODON_CLIENT_KEY=changeme
+      - WR_MASTODON_CLIENT_SECRET=changeme
+      - WR_MASTODON_ACCESS_TOKEN=changeme
 
     volumes:
       - /home/ubuntu/services/webhook-receiver/cache:/cache
