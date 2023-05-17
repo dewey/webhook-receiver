@@ -70,7 +70,7 @@ func TestGetCacheKey(t *testing.T) {
 	service := NewService(log.NewNopLogger(), nil, nil, "", "", "")
 	for _, tt := range cacheTests {
 		t.Run("testing cleaning function", func(t *testing.T) {
-			outTime, outURL, err := service.getCacheKey(tt.line)
+			outTime, outURL, err := service.getCacheKey("twitter", tt.line)
 			if err != nil {
 				t.Errorf("shouldn't get an error")
 			}
@@ -249,7 +249,7 @@ func Test_service_getCacheKey(t *testing.T) {
 				cacheFilePath: tt.fields.cacheFilePath,
 				hookToken:     tt.fields.hookToken,
 			}
-			got, got1, err := s.getCacheKey(tt.args.cacheEntry)
+			got, got1, err := s.getCacheKey("twitter", tt.args.cacheEntry)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getCacheKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
