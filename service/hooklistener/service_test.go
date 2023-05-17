@@ -19,18 +19,18 @@ var (
 	t5, _ = time.Parse("2006-01-02", "2020-05-20")
 
 	cacheMapOne = map[string]time.Time{
-		"https://annoying.technology/posts/1/": time.Time{},
-		"https://annoying.technology/2/":       t1,
-		"https://annoying.technology/posts/3/": t2,
-		"https://annoying.technology/posts/4/": t3,
-		"https://annoying.technology/posts/5/": t4,
+		"twitter:https://annoying.technology/posts/1/": time.Time{},
+		"twitter:https://annoying.technology/2/":       t1,
+		"twitter:https://annoying.technology/posts/3/": t2,
+		"twitter:https://annoying.technology/posts/4/": t3,
+		"twitter:https://annoying.technology/posts/5/": t4,
 	}
 	cacheMapTwo = map[string]time.Time{
-		"https://annoying.technology/posts/1/": time.Time{},
-		"https://annoying.technology/2/":       t1,
-		"https://annoying.technology/posts/3/": t2,
-		"https://annoying.technology/posts/4/": t3,
-		"https://annoying.technology/posts/5/": t5,
+		"twitter:https://annoying.technology/posts/1/": time.Time{},
+		"twitter:https://annoying.technology/2/":       t1,
+		"twitter:https://annoying.technology/posts/3/": t2,
+		"twitter:https://annoying.technology/posts/4/": t3,
+		"twitter:https://annoying.technology/posts/5/": t5,
 	}
 
 	timeOut, _ = time.Parse("2006-01-02", "2020-01-04")
@@ -49,7 +49,7 @@ func TestHasPostedToday(t *testing.T) {
 	service := NewService(log.NewNopLogger(), nil, nil, "", "", "")
 	for _, tt := range tweetedTests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := service.hasPostedToday(tt.cache)
+			got := service.hasPostedToday(tt.cache, "twitter")
 			if got != tt.out {
 				t.Errorf("got %t, want %t", got, tt.out)
 			}
