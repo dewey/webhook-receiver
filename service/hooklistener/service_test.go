@@ -62,8 +62,8 @@ var cacheTests = []struct {
 	outTime time.Time
 	outURL  string
 }{
-	{"https://annoying.technology/posts/1/", time.Time{}, "https://annoying.technology/posts/1/"},
-	{"2020-01-04:https://annoying.technology/posts/4/", timeOut, "https://annoying.technology/posts/4/"},
+	{"c1f50e78a65d2ce3", time.Time{}, "twitter:c1f50e78a65d2ce3"},
+	{"2020-01-04:twitter:c1f50e78a65d2ce3", timeOut, "twitter:c1f50e78a65d2ce3"},
 }
 
 func TestGetCacheKey(t *testing.T) {
