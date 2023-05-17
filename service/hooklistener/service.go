@@ -55,10 +55,11 @@ func (s *service) ValidToken(uuid string) (bool, error) {
 }
 
 // getCacheKey returns the cache key without the timestamp if it exists from a full cache entry
-func (s *service) getCacheKey(cacheEntry string) (time.Time, string, error) {
+func (s *service) getCacheKey(notificationProviderOverride string, cacheEntry string) (time.Time, string, error) {
 	if cacheEntry == "" {
 		return time.Time{}, "", errors.New("cache entry is empty")
 	}
+	// Current format: "2021-04-29:mastodon:fb12e19ed8f09522"
 	tokens := reSplitCacheKey.FindStringSubmatch(cacheEntry)
 	if len(tokens) == 4 && tokens[2] != "" {
 		t, err := time.Parse("2006-01-02", tokens[1])
@@ -75,7 +76,7 @@ func (s *service) getCacheKey(cacheEntry string) (time.Time, string, error) {
 			level.Error(s.l).Log("err", err)
 			return time.Time{}, "", err
 		}
-		return t, fmt.Sprintf("twitter:%s", tokens[3]), nil
+		return t, fmt.Sprintf("%s:%s", notificationProviderOverride, tokens[3]), nil
 	}
 	// Legacy: "fb12e19ed8f09522", no timestamps and the cache key was the post id
 	legacyToken := reLegacyCacheKey.FindStringSubmatch(cacheEntry)
@@ -83,7 +84,7 @@ func (s *service) getCacheKey(cacheEntry string) (time.Time, string, error) {
 	// When we had the legacy cache entries we only sent tweets. We also check for the occurance of ":" to differentiate
 	// it from the new cache format
 	if len(legacyToken) == 1 && !strings.Contains(cacheEntry, ":") {
-		return time.Time{}, fmt.Sprintf("twitter:%s", cacheEntry), nil
+		return time.Time{}, fmt.Sprintf("%s:%s", notificationProviderOverride, cacheEntry), nil
 	}
 
 	return time.Time{}, "", errors.New("couldn't get cache key from cache line")

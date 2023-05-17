@@ -58,17 +58,20 @@ func webHookHandler(s service) http.HandlerFunc {
 				if scanner.Text() == "" {
 					continue
 				}
-				cacheTimeStamp, key, err := s.getCacheKey(scanner.Text())
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					level.Error(s.l).Log("err", err)
-					return
+				// We assume all past cache entries were already posted on both services
+				for _, notificationService := range []string{"twitter", "mastodon"} {
+					cacheTimeStamp, key, err := s.getCacheKey(notificationService, scanner.Text())
+					if err != nil {
+						level.Error(s.l).Log("err", err)
+						continue
+					}
+
+					// If URL doesn't exist in cache, set cache entry to cacheKey:time.Time in map
+					if _, ok := m[key]; !ok {
+						m[key] = cacheTimeStamp
+					}
 				}
-				
-				// If URL doesn't exist in cache, set cache entry to cacheKey:time.Time in map
-				if _, ok := m[key]; !ok {
-					m[key] = cacheTimeStamp
-				}
+
 			}
 
 			if err := scanner.Err(); err != nil {

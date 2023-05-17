@@ -114,6 +114,8 @@ func main() {
 	if *environment == "develop" {
 		notifiers = append(notifiers, notification.NewMockRepository(l, "mock1"))
 		notifiers = append(notifiers, notification.NewMockRepository(l, "mock2"))
+		notifiers = append(notifiers, notification.NewMockRepository(l, "twitter"))
+		notifiers = append(notifiers, notification.NewMockRepository(l, "mastodon"))
 	}
 
 	if len(notifiers) == 0 {
