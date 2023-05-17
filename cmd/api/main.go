@@ -34,18 +34,18 @@ func main() {
 	fs := flag.NewFlagSet("webhook-receiver", flag.ExitOnError)
 	var (
 		environment              = fs.String("environment", "develop", "the environment we are running in")
-		port                     = fs.String("port", "8080", "the port archivepipe is running on")
-		twitterConsumerKey       = fs.String("twitter-consumer-key", "changeme", "the twitter consumer key")
-		twitterConsumerSecretKey = fs.String("twitter-consumer-secret-key", "changeme", "the twitter consumer secret key")
-		twitterAccessToken       = fs.String("twitter-access-token", "changeme", "the twitter consumer key")
-		twitterAccessTokenSecret = fs.String("twitter-access-token-secret", "changeme", "the twitter consumer secret key")
-		twitterUsername          = fs.String("twitter-username", "annoyingfeed", "the twitter username you are connecting to")
-		mastodonClientKey        = fs.String("mastodon-client-key", "changeme", "the mastodon client key")
-		mastodonClientSecret     = fs.String("mastodon-client-secret", "changeme", "the mastodon client secret")
-		mastodonAccessToken      = fs.String("mastodon-access-token", "changeme", "the mastodon access token")
-		mastodonServer           = fs.String("mastodon-server", "changeme", "the mastodon instance you are using")
+		port                     = fs.String("port", "8080", "the port webhook-receiver is running on")
+		twitterConsumerKey       = fs.String("twitter-consumer-key", "", "the twitter consumer key")
+		twitterConsumerSecretKey = fs.String("twitter-consumer-secret-key", "", "the twitter consumer secret key")
+		twitterAccessToken       = fs.String("twitter-access-token", "", "the twitter consumer key")
+		twitterAccessTokenSecret = fs.String("twitter-access-token-secret", "", "the twitter consumer secret key")
+		twitterUsername          = fs.String("twitter-username", "", "the twitter username you are connecting to")
+		mastodonClientKey        = fs.String("mastodon-client-key", "", "the mastodon client key")
+		mastodonClientSecret     = fs.String("mastodon-client-secret", "", "the mastodon client secret")
+		mastodonAccessToken      = fs.String("mastodon-access-token", "", "the mastodon access token")
+		mastodonServer           = fs.String("mastodon-server", "", "the mastodon instance you are using")
 		feedURL                  = fs.String("feed-url", "https://annoying.technology/index.xml", "the direct url to the feed index")
-		cacheFilePath            = fs.String("cache-file-path", "~/cache", "the path to the cache file, to prevent duplicate notifications")
+		cacheFilePath            = fs.String("cache-file-path", "cache", "the path to the cache file, to prevent duplicate notifications")
 		hookToken                = fs.String("hook-token", "changeme", "the secret token for the hook, to prevent other people from hitting the hook")
 	)
 
@@ -69,7 +69,7 @@ func main() {
 	}
 	l = log.With(l, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
-	var notifiers []notification.Repository
+	var notifiers notification.Notifiers
 	// Set up Twitter client
 	if *twitterConsumerKey != "" && *twitterAccessTokenSecret != "" && *twitterConsumerSecretKey != "" && *twitterAccessToken != "" {
 		config := oauth1.NewConfig(*twitterConsumerKey, *twitterConsumerSecretKey)
@@ -109,9 +109,18 @@ func main() {
 		notifiers = append(notifiers, notification.NewMastodonRepository(l, cm))
 	}
 
+	// For local development we inject a mock notifier which just prints out a notification. That way we can test the caching
+	// logic without setting up real services. The name has to follow the naming convention "mock[\d+]" as defined in service.go
+	if *environment == "develop" {
+		notifiers = append(notifiers, notification.NewMockRepository(l, "mock1"))
+		notifiers = append(notifiers, notification.NewMockRepository(l, "mock2"))
+	}
+
 	if len(notifiers) == 0 {
 		level.Error(l).Log("err", "no notifiers are configured. make sure to set up twitter and/or mastodon")
 		return
+	} else {
+		level.Info(l).Log("msg", "configured notifiers", "notifiers", notifiers.String())
 	}
 
 	// Set up HTTP API

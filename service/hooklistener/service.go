@@ -2,7 +2,9 @@ package hooklistener
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -14,7 +16,8 @@ import (
 )
 
 var (
-	reSplitCacheKey = regexp.MustCompile(`(\d{4}-\d{2}-\d{2}):(.+)`)
+	reSplitCacheKey  = regexp.MustCompile(`(\d{4}-\d{2}-\d{2}):(twitter|mastodon|mock1|mock[\d+]):(.+)`)
+	reLegacyCacheKey = regexp.MustCompile(`[a-z0-9]{16}`)
 )
 
 // Service is an interface for a incoming hook listener service
@@ -51,39 +54,35 @@ func (s *service) ValidToken(uuid string) (bool, error) {
 	return false, nil
 }
 
-// getCacheKey returns the cache key without the timestamp if it exists
-func (s *service) getCacheKey(line string) (time.Time, string, error) {
-	tokens := reSplitCacheKey.FindStringSubmatch(line)
-	if len(tokens) == 3 {
+// getCacheKey returns the cache key without the timestamp if it exists from a full cache entry
+func (s *service) getCacheKey(cacheEntry string) (time.Time, string, error) {
+	tokens := reSplitCacheKey.FindStringSubmatch(cacheEntry)
+	if len(tokens) == 4 {
 		t, err := time.Parse("2006-01-02", tokens[1])
 		if err != nil {
 			level.Error(s.l).Log("err", err)
 			return time.Time{}, "", err
 		}
-		return t, tokens[2], nil
+		return t, fmt.Sprintf("%s:%s", tokens[2], tokens[3]), nil
 	}
-	if len(tokens) == 0 {
-		return time.Time{}, line, nil
+	// To account for old cache format where we didn't have time stamps and the full cache entry was the key
+	legacyToken := reLegacyCacheKey.FindStringSubmatch(cacheEntry)
+
+	// When we had the legacy cache entries we only sent tweets. We also check for the occurance of ":" to differentiate
+	// it from the new cache format
+	if len(legacyToken) == 1 && !strings.Contains(cacheEntry, ":") {
+		return time.Time{}, fmt.Sprintf("twitter:%s", cacheEntry), nil
 	}
+
 	return time.Time{}, "", errors.New("couldn't get cache key from cache line")
 }
 
-// isCached checks if feed items are already cached
-func (s *service) isCached(items []*gofeed.Item, cache map[string]time.Time) bool {
-	for _, item := range items {
-		if _, ok := cache[item.GUID]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 // getUncachedFeedItem returns a feed item if there's something new and uncached
-func (s *service) getNextUncachedFeedItem(items []*gofeed.Item, cache map[string]time.Time) (*gofeed.Item, bool, error) {
+func (s *service) getNextUncachedFeedItem(items []*gofeed.Item, notificationService string, cache map[string]time.Time) (*gofeed.Item, bool, error) {
 	// For each iteration we only send one notification even if there are more cache misses (aka. unsent tweets). This acts
 	// as a natural rate limit and jittering and they are more spread out.
 	for _, item := range items {
-		if _, ok := cache[item.GUID]; !ok {
+		if _, ok := cache[fmt.Sprintf("%s:%s", notificationService, item.GUID)]; !ok {
 			// Item doesn't exist in cache yet, it still needs to be posted
 			return item, false, nil
 		}
@@ -91,10 +90,10 @@ func (s *service) getNextUncachedFeedItem(items []*gofeed.Item, cache map[string
 	return nil, true, nil
 }
 
-// hasTweetedToday checks if something was posted today, if there's already a Tweet it returns true
-func (s *service) hasTweetedToday(m map[string]time.Time) bool {
-	for _, val := range m {
-		if time.Since(val).Hours() < 24 {
+// hasPostedToday checks if something was posted today, if there's already a post it returns true
+func (s *service) hasPostedToday(m map[string]time.Time, notificationService string) bool {
+	for key, val := range m {
+		if time.Since(val).Hours() < 24 && strings.Contains(key, notificationService) {
 			return true
 		} else {
 			// Cache entries with no timestamp are skipped. This is to be backwards compatible with the old

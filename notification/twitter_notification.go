@@ -29,8 +29,12 @@ func NewTwitterRepository(l log.Logger, c *twitter.Client, tu *twitter.User) *tw
 	}
 }
 
+func (s *twitterRepository) String() string {
+	return "twitter"
+}
+
 func (s *twitterRepository) Post(ctx context.Context, text string, author string, url string) error {
-	// We split into words, and add as many words so we stay routhly under 100 characters for the Tweet
+	// We split into words, and add as many words while trying to stay roughly under 100 characters for the tweet
 	var length int
 	var summaryTokens []string
 	for _, t := range strings.Split(text, " ") {

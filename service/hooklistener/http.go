@@ -62,7 +62,7 @@ func webHookHandler(s service) http.HandlerFunc {
 					return
 				}
 
-				// If URL doesn't exist in cache, set cache entry to url:time.Time in map
+				// If URL doesn't exist in cache, set cache entry to cacheKey:time.Time in map
 				if _, ok := m[key]; !ok {
 					m[key] = cacheTimeStamp
 				}
@@ -74,39 +74,34 @@ func webHookHandler(s service) http.HandlerFunc {
 				return
 			}
 
-			// If there's a already a tweet for today in the cache, we do nothing
-			if s.hasTweetedToday(m) {
-				w.WriteHeader(http.StatusAccepted)
-				level.Debug(s.l).Log("msg", "there's already a tweet today, skipping")
-				return
-			}
-
 			t := time.Now()
-			item, isCached, err := s.getNextUncachedFeedItem(items, m)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
-				return
-			}
-			// If item not in cache yet, we can send a notification and add it to the cache
-			if !isCached {
-				level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
-				_, err := f.WriteString(t.Format("2006-01-02") + ":" + item.GUID + "\n")
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					level.Error(s.l).Log("err", err)
-					return
+			for _, notificationService := range s.nr {
+				// If there's a already a post for today in the cache for this service, we do nothing
+				if s.hasPostedToday(m, notificationService.String()) {
+					level.Debug(s.l).Log("msg", "there's already a post today, skipping")
+					continue
 				}
-				for _, repository := range s.nr {
-					repo := repository
-					if err := repo.Post(r.Context(), item.Description, item.Author.Name, item.Link); err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
+
+				item, isCached, err := s.getNextUncachedFeedItem(items, notificationService.String(), m)
+				if err != nil {
+					level.Error(s.l).Log("err", err)
+					continue
+				}
+				if !isCached {
+					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
+					_, err := f.WriteString(t.Format("2006-01-02") + ":" + notificationService.String() + ":" + item.GUID + "\n")
+					if err != nil {
 						level.Error(s.l).Log("err", err)
-						return
+						continue
+					}
+					// If item not in cache yet for this notificatino provider, we can send a notification and add it to the cache
+					if err := notificationService.Post(r.Context(), item.Description, item.Author.Name, item.Link); err != nil {
+						level.Error(s.l).Log("err", err)
+						continue
 					}
 				}
-
 			}
+
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
