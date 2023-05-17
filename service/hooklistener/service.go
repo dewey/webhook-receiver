@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	reSplitCacheKey  = regexp.MustCompile(`(\d{4}-\d{2}-\d{2}):(twitter|mastodon|mock1|mock[\d+]):(.+)`)
+	reSplitCacheKey  = regexp.MustCompile(`(\d{4}-\d{2}-\d{2})(?::(twitter|mastodon|mock\d+))?:(\w{16})`)
 	reLegacyCacheKey = regexp.MustCompile(`[a-z0-9]{16}`)
 )
 
@@ -56,8 +56,11 @@ func (s *service) ValidToken(uuid string) (bool, error) {
 
 // getCacheKey returns the cache key without the timestamp if it exists from a full cache entry
 func (s *service) getCacheKey(cacheEntry string) (time.Time, string, error) {
+	if cacheEntry == "" {
+		return time.Time{}, "", errors.New("cache entry is empty")
+	}
 	tokens := reSplitCacheKey.FindStringSubmatch(cacheEntry)
-	if len(tokens) == 4 {
+	if len(tokens) == 4 && tokens[2] != "" {
 		t, err := time.Parse("2006-01-02", tokens[1])
 		if err != nil {
 			level.Error(s.l).Log("err", err)
@@ -65,7 +68,16 @@ func (s *service) getCacheKey(cacheEntry string) (time.Time, string, error) {
 		}
 		return t, fmt.Sprintf("%s:%s", tokens[2], tokens[3]), nil
 	}
-	// To account for old cache format where we didn't have time stamps and the full cache entry was the key
+	// Legacy: "2023-05-17:fb12e19ed8f09522" cache format
+	if len(tokens) == 4 && tokens[2] == "" {
+		t, err := time.Parse("2006-01-02", tokens[1])
+		if err != nil {
+			level.Error(s.l).Log("err", err)
+			return time.Time{}, "", err
+		}
+		return t, fmt.Sprintf("twitter:%s", tokens[3]), nil
+	}
+	// Legacy: "fb12e19ed8f09522", no timestamps and the cache key was the post id
 	legacyToken := reLegacyCacheKey.FindStringSubmatch(cacheEntry)
 
 	// When we had the legacy cache entries we only sent tweets. We also check for the occurance of ":" to differentiate

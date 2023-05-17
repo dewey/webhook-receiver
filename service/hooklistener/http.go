@@ -55,13 +55,16 @@ func webHookHandler(s service) http.HandlerFunc {
 			// Add all unique entries of cache file (they should be unique anyway) to map
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
+				if scanner.Text() == "" {
+					continue
+				}
 				cacheTimeStamp, key, err := s.getCacheKey(scanner.Text())
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					level.Error(s.l).Log("err", err)
 					return
 				}
-
+				
 				// If URL doesn't exist in cache, set cache entry to cacheKey:time.Time in map
 				if _, ok := m[key]; !ok {
 					m[key] = cacheTimeStamp
@@ -78,7 +81,7 @@ func webHookHandler(s service) http.HandlerFunc {
 			for _, notificationService := range s.nr {
 				// If there's a already a post for today in the cache for this service, we do nothing
 				if s.hasPostedToday(m, notificationService.String()) {
-					level.Debug(s.l).Log("msg", "there's already a post today, skipping")
+					level.Debug(s.l).Log("msg", "there's already a post today, skipping", "notification_service", notificationService.String())
 					continue
 				}
 
@@ -88,7 +91,7 @@ func webHookHandler(s service) http.HandlerFunc {
 					continue
 				}
 				if !isCached {
-					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
+					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID, "notification_service", notificationService.String())
 					_, err := f.WriteString(t.Format("2006-01-02") + ":" + notificationService.String() + ":" + item.GUID + "\n")
 					if err != nil {
 						level.Error(s.l).Log("err", err)

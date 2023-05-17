@@ -179,6 +179,18 @@ func Test_service_getCacheKey(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "old cache format without service",
+			fields: fields{
+				l: log.NewNopLogger(),
+			},
+			args: args{
+				cacheEntry: "2021-04-29:fb12e19ed8f09522",
+			},
+			want:    t2,
+			want1:   "twitter:fb12e19ed8f09522",
+			wantErr: false,
+		},
+		{
 			name: "valid cache format, invalid notification service",
 			fields: fields{
 				l: log.NewNopLogger(),
@@ -200,6 +212,18 @@ func Test_service_getCacheKey(t *testing.T) {
 			},
 			want:    time.Time{},
 			want1:   "twitter:c1f50e78a65d2ce3",
+			wantErr: false,
+		},
+		{
+			name: "valid new cache format",
+			fields: fields{
+				l: log.NewNopLogger(),
+			},
+			args: args{
+				cacheEntry: "2021-04-29:mock1:fb12e19ed8f09522",
+			},
+			want:    t2,
+			want1:   "mock1:fb12e19ed8f09522",
 			wantErr: false,
 		},
 		{
