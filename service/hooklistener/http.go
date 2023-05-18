@@ -1,6 +1,7 @@
 package hooklistener
 
 import (
+	"encoding/json"
 	"github.com/dewey/webhook-receiver/cache"
 	"net/http"
 	"time"
@@ -23,13 +24,27 @@ func NewHandler(s service) *chi.Mux {
 
 func webHookHandler(s service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Checking if UUID is in our whitelist
+		// Checking if UUID is in our whitelist, otherwise we can already return early
 		valid, err := s.ValidToken(chi.URLParam(r, "uuid"))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			level.Error(s.l).Log("err", err)
 			return
 		}
+
+		var payload GitlabWebhookPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			level.Error(s.l).Log("err", errors.Wrap(err, "decoding payload"))
+			return
+		}
+
+		// We do nothing if it's just one of many webhooks the pipeline is sending us
+		if !payload.IsActionable() {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		// TODO(dewey): This should not be in the handler, but for now it's good enough
 		if valid {
 			level.Info(s.l).Log("msg", "received valid token on webhook endpoint", "uuid", chi.URLParam(r, "uuid"))
