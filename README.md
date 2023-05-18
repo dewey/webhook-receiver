@@ -1,6 +1,6 @@
 # Web hook Receiver: Post to Twitter or Mastodon from RSS feed
 
-This is a service that acts as a receiver for web hooks. Once it's getting hit by an incoming web hook (For example from [Netlify](https://www.netlify.com/docs/webhooks/) on a successful build) fetches an RSS feed and tweets/toots out the items that haven't been tweeted/tooted yet. It does this by keeping a local cache file of things it tweeted/tooted so it'll only do it once.
+This is a service that acts as a receiver for web hooks. Once it's getting hit by an incoming web hook (For example from [Netlify](https://www.netlify.com/docs/webhooks/) on a successful build) fetches an RSS feed and tweets/toots out the items that haven't been tweeted/tooted yet. It does this by keeping a local cache db of things it tweeted/tooted so it'll only do it once.
 
 There's alternatives like [Zapier](https://zapier.com/app-directory/rss/integrations/twitter) and [IFTTT](https://ifttt.com/twitter) but they don't have a way to customize the Tweet/Toot format. Their defaults don't look that nice too.
 
@@ -12,7 +12,7 @@ My use case is a [Hugo](https://gohugo.io) blog deployed on [Netlify](https://ww
 2) The build is successful  
 3) Netlify hits `webhook-receiver` running on `webhooks.example.com`  
 4) Then `webhook-receiver` fetches the RSS feed on `example.com/feed.xml`  
-5) It checks the local cache file which items haven't been posted to Twitter  
+5) It checks the local cache db which items haven't been posted to Twitter  
 6) It tweets/toots one feed item that hasn't been posted yet and adds it to the cache. If there's multiple items that are not published yet it'll only post one. The next one will be posted on the next web hook trigger  
 7) It goes back to listening for new web hooks from Netlify
 
@@ -27,7 +27,7 @@ There are the environment variables that can be set.
 ```
 export WR_ENVIRONMENT=development
 export WR_PORT=8080
-export WR_CACHE_FILE_PATH=/cache
+export WR_CACHE_DATABASE_PATH=/cache
 export WR_FEED_URL=https://example.com/feed.xml
 export WR_HOOK_TOKEN=changeme
 export WR_TWITTER_CONSUMER_KEY=changeme
