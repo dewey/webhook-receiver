@@ -2,7 +2,6 @@ source develop.env
 
 function cleanup() {
     rm -f webhook-receiver
-    rm -f cache
 }
 trap cleanup EXIT
 
