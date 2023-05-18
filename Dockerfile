@@ -1,6 +1,12 @@
 FROM golang:1.20-alpine as builder
 
-RUN apk add git bash
+RUN apk add --no-cache \
+    # Important: required for go-sqlite3
+    gcc \
+    # Required for Alpine
+    musl-dev \
+    git \
+    bash
 
 ENV GO111MODULE=on
 ENV CGO_ENABLED=1
