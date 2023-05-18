@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
-	"net/http"
-	"os"
-	"strings"
-
+	"github.com/dewey/webhook-receiver/cache"
 	"github.com/dewey/webhook-receiver/feed"
 	"github.com/dewey/webhook-receiver/notification"
 	"github.com/dewey/webhook-receiver/service/hooklistener"
@@ -16,9 +14,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-mastodon"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/peterbourgon/ff/v3"
+	"github.com/pressly/goose/v3"
+	"net/http"
+	"os"
+	"strings"
 )
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 
 type maxBytesHandler struct {
 	h http.Handler
@@ -34,18 +41,18 @@ func main() {
 	fs := flag.NewFlagSet("webhook-receiver", flag.ExitOnError)
 	var (
 		environment              = fs.String("environment", "develop", "the environment we are running in")
-		port                     = fs.String("port", "8080", "the port archivepipe is running on")
-		twitterConsumerKey       = fs.String("twitter-consumer-key", "changeme", "the twitter consumer key")
-		twitterConsumerSecretKey = fs.String("twitter-consumer-secret-key", "changeme", "the twitter consumer secret key")
-		twitterAccessToken       = fs.String("twitter-access-token", "changeme", "the twitter consumer key")
-		twitterAccessTokenSecret = fs.String("twitter-access-token-secret", "changeme", "the twitter consumer secret key")
-		twitterUsername          = fs.String("twitter-username", "annoyingfeed", "the twitter username you are connecting to")
-		mastodonClientKey        = fs.String("mastodon-client-key", "changeme", "the mastodon client key")
-		mastodonClientSecret     = fs.String("mastodon-client-secret", "changeme", "the mastodon client secret")
-		mastodonAccessToken      = fs.String("mastodon-access-token", "changeme", "the mastodon access token")
-		mastodonServer           = fs.String("mastodon-server", "changeme", "the mastodon instance you are using")
+		port                     = fs.String("port", "8080", "the port webhook-receiver is running on")
+		twitterConsumerKey       = fs.String("twitter-consumer-key", "", "the twitter consumer key")
+		twitterConsumerSecretKey = fs.String("twitter-consumer-secret-key", "", "the twitter consumer secret key")
+		twitterAccessToken       = fs.String("twitter-access-token", "", "the twitter consumer key")
+		twitterAccessTokenSecret = fs.String("twitter-access-token-secret", "", "the twitter consumer secret key")
+		twitterUsername          = fs.String("twitter-username", "", "the twitter username you are connecting to")
+		mastodonClientKey        = fs.String("mastodon-client-key", "", "the mastodon client key")
+		mastodonClientSecret     = fs.String("mastodon-client-secret", "", "the mastodon client secret")
+		mastodonAccessToken      = fs.String("mastodon-access-token", "", "the mastodon access token")
+		mastodonServer           = fs.String("mastodon-server", "", "the mastodon instance you are using")
 		feedURL                  = fs.String("feed-url", "https://annoying.technology/index.xml", "the direct url to the feed index")
-		cacheFilePath            = fs.String("cache-file-path", "~/cache", "the path to the cache file, to prevent duplicate notifications")
+		cacheDatabasePath        = fs.String("cache-database-path", "webhook-receiver.db", "the path to the cache database, to prevent duplicate notifications")
 		hookToken                = fs.String("hook-token", "changeme", "the secret token for the hook, to prevent other people from hitting the hook")
 	)
 
@@ -69,7 +76,37 @@ func main() {
 	}
 	l = log.With(l, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
-	var notifiers []notification.Repository
+	// Connect to sqlite database, create if it doesn't exist and run available migrations if needed
+	db, err := sqlx.Open("sqlite3", *cacheDatabasePath)
+	if err != nil {
+		level.Error(l).Log("msg", "error opening database", "err", err)
+		return
+	}
+	if err := db.Ping(); err != nil {
+		level.Error(l).Log("msg", "error pinging database", "err", err)
+		return
+	}
+	goose.SetBaseFS(embedMigrations)
+	f, err := embedMigrations.ReadDir("migrations")
+	if err != nil {
+		level.Error(l).Log("msg", "error reading migrations directory", "err", err)
+		return
+	}
+	for _, entry := range f {
+		level.Info(l).Log("msg", fmt.Sprintf("found migration %s", entry.Name()))
+	}
+
+	if err := goose.SetDialect("sqlite"); err != nil {
+		level.Error(l).Log("msg", "error setting dialect for database", "err", err)
+		return
+	}
+
+	if err := goose.Up(db.DB, "migrations"); err != nil {
+		level.Error(l).Log("msg", "error running migrations", "err", err)
+		return
+	}
+
+	var notifiers notification.Notifiers
 	// Set up Twitter client
 	if *twitterConsumerKey != "" && *twitterAccessTokenSecret != "" && *twitterConsumerSecretKey != "" && *twitterAccessToken != "" {
 		config := oauth1.NewConfig(*twitterConsumerKey, *twitterConsumerSecretKey)
@@ -82,7 +119,7 @@ func main() {
 			ScreenName: *twitterUsername,
 		})
 		if err != nil {
-			level.Error(l).Log("err", "error getting user information from twitter")
+			level.Error(l).Log("msg", "error getting user information from twitter", "err", err)
 			return
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -109,9 +146,20 @@ func main() {
 		notifiers = append(notifiers, notification.NewMastodonRepository(l, cm))
 	}
 
+	// For local development we inject a mock notifier which just prints out a notification. That way we can test the caching
+	// logic without setting up real services. The name has to follow the naming convention "mock[\d+]" as defined in service.go
+	if *environment == "develop" {
+		notifiers = append(notifiers, notification.NewMockRepository(l, "mock1"))
+		notifiers = append(notifiers, notification.NewMockRepository(l, "mock2"))
+		notifiers = append(notifiers, notification.NewMockRepository(l, "twitter"))
+		notifiers = append(notifiers, notification.NewMockRepository(l, "mastodon"))
+	}
+
 	if len(notifiers) == 0 {
 		level.Error(l).Log("err", "no notifiers are configured. make sure to set up twitter and/or mastodon")
 		return
+	} else {
+		level.Info(l).Log("msg", "configured notifiers", "notifiers", notifiers.String())
 	}
 
 	// Set up HTTP API
@@ -121,14 +169,19 @@ func main() {
 	})
 
 	fr := feed.NewRepository(l)
-	listenerService := hooklistener.NewService(l, fr, notifiers, *feedURL, *cacheFilePath, *hookToken)
+	cacheRepository, err := cache.NewRepository(l, db)
+	if err != nil {
+		fmt.Println("err", err)
+		return
+	}
+	listenerService := hooklistener.NewService(l, fr, notifiers, cacheRepository, *feedURL, *hookToken)
 
 	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))
 
 	level.Info(l).Log("msg", fmt.Sprintf("webhook-receiver is running on :%s", *port), "environment", *environment)
 
-	// Set up webserver and and set max file limit to 50MB
-	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
+	// Set up webserver and set max file limit to 50MB
+	err = http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
 	if err != nil {
 		level.Error(l).Log("err", err)
 		return

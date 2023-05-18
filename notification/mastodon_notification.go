@@ -25,8 +25,12 @@ func NewMastodonRepository(l log.Logger, c *mastodon.Client) *mastodonRepository
 	}
 }
 
+func (s *mastodonRepository) String() string {
+	return "mastodon"
+}
+
 func (s *mastodonRepository) Post(ctx context.Context, text string, author string, url string) error {
-	// We split into words, and add as many words so we stay routhly under 100 characters for the Tweet
+	// We split into words, and add as many words while trying to stay roughly under 100 characters for the post
 	var length int
 	var summaryTokens []string
 	for _, t := range strings.Split(text, " ") {

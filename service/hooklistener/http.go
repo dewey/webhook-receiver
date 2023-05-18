@@ -1,9 +1,8 @@
 package hooklistener
 
 import (
-	"bufio"
+	"github.com/dewey/webhook-receiver/cache"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -41,72 +40,42 @@ func webHookHandler(s service) http.HandlerFunc {
 				return
 			}
 
-			f, err := os.OpenFile(s.cacheFilePath, os.O_CREATE|os.O_RDWR, 0644)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
-				return
-			}
-			defer f.Close()
-
-			// Read cache file into map
-			m := make(map[string]time.Time)
-
-			// Add all unique entries of cache file (they should be unique anyway) to map
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				cacheTimeStamp, key, err := s.getCacheKey(scanner.Text())
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					level.Error(s.l).Log("err", err)
-					return
-				}
-
-				// If URL doesn't exist in cache, set cache entry to url:time.Time in map
-				if _, ok := m[key]; !ok {
-					m[key] = cacheTimeStamp
-				}
-			}
-
-			if err := scanner.Err(); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
-				return
-			}
-
-			// If there's a already a tweet for today in the cache, we do nothing
-			if s.hasTweetedToday(m) {
-				w.WriteHeader(http.StatusAccepted)
-				level.Debug(s.l).Log("msg", "there's already a tweet today, skipping")
-				return
-			}
-
 			t := time.Now()
-			item, isCached, err := s.getNextUncachedFeedItem(items, m)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
-				return
-			}
-			// If item not in cache yet, we can send a notification and add it to the cache
-			if !isCached {
-				level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID)
-				_, err := f.WriteString(t.Format("2006-01-02") + ":" + item.GUID + "\n")
+			for _, notificationService := range s.nr {
+				// If there's already a post for today in the cache for this service, we do nothing.
+				exists, err := s.cr.EntryExists(t, notificationService.String())
 				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
 					level.Error(s.l).Log("err", err)
-					return
+					continue
 				}
-				for _, repository := range s.nr {
-					repo := repository
-					if err := repo.Post(r.Context(), item.Description, item.Author.Name, item.Link); err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
+				if exists {
+					level.Debug(s.l).Log("msg", "there's already a post today, skipping", "notification_service", notificationService.String())
+					continue
+				}
+
+				item, isCached, err := s.getNextUncachedFeedItem(items, notificationService.String())
+				if err != nil {
+					level.Error(s.l).Log("err", err)
+					continue
+				}
+				if !isCached {
+					level.Info(s.l).Log("msg", "cache miss, send notification", "guid", item.GUID, "notification_service", notificationService.String())
+					if err := s.cr.Set(cache.Entry{
+						Key:                 item.GUID,
+						NotificationService: notificationService.String(),
+						Date:                time.Now().Format("2006-01-02"),
+					}); err != nil {
 						level.Error(s.l).Log("err", err)
-						return
+						continue
+					}
+					// If item not in cache yet for this notification service, we can send a notification
+					if err := notificationService.Post(r.Context(), item.Description, item.Author.Name, item.Link); err != nil {
+						level.Error(s.l).Log("err", err)
+						continue
 					}
 				}
-
 			}
+
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
