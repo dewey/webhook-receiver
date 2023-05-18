@@ -10,7 +10,7 @@ ADD ./ $GOPATH/src/github.com/dewey/webhook-receiver
 # build
 WORKDIR $GOPATH/src/github.com/dewey/webhook-receiver
 RUN cd $GOPATH/src/github.com/dewey/webhook-receiver && \    
-    GO111MODULE=on GOGC=off go build -mod=vendor -v -o /webhook-receiver ./cmd/api/
+    GO111MODULE=on GOGC=off go CGO_ENABLED=1 build -mod=vendor -v -o /webhook-receiver ./cmd/api/
 
 # multistage
 FROM alpine:latest
