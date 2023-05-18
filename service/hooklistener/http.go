@@ -59,7 +59,7 @@ func webHookHandler(s service) http.HandlerFunc {
 					continue
 				}
 				if !isCached {
-					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID, "notification_service", notificationService.String())
+					level.Info(s.l).Log("msg", "cache miss, send notification", "guid", item.GUID, "notification_service", notificationService.String())
 					if err := s.cr.Set(cache.Entry{
 						Key:                 item.GUID,
 						NotificationService: notificationService.String(),
@@ -68,7 +68,7 @@ func webHookHandler(s service) http.HandlerFunc {
 						level.Error(s.l).Log("err", err)
 						continue
 					}
-					// If item not in cache yet for this notificatino provider, we can send a notification and add it to the cache
+					// If item not in cache yet for this notification service, we can send a notification
 					if err := notificationService.Post(r.Context(), item.Description, item.Author.Name, item.Link); err != nil {
 						level.Error(s.l).Log("err", err)
 						continue
