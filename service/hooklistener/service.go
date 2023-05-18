@@ -2,17 +2,10 @@ package hooklistener
 
 import (
 	"github.com/dewey/webhook-receiver/cache"
-	"github.com/mmcdole/gofeed"
-	"regexp"
-
 	"github.com/dewey/webhook-receiver/feed"
 	"github.com/dewey/webhook-receiver/notification"
 	"github.com/go-kit/log"
-)
-
-var (
-	reSplitCacheKey  = regexp.MustCompile(`(\d{4}-\d{2}-\d{2})(?::(twitter|mastodon|mock\d+))?:(\w{16})`)
-	reLegacyCacheKey = regexp.MustCompile(`[a-z0-9]{16}`)
+	"github.com/mmcdole/gofeed"
 )
 
 // Service is an interface for a incoming hook listener service
