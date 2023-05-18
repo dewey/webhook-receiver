@@ -9,7 +9,7 @@ ADD ./ $GOPATH/src/github.com/dewey/webhook-receiver
 
 # build
 WORKDIR $GOPATH/src/github.com/dewey/webhook-receiver
-RUN cd $GOPATH/src/github.com/dewey/webhook-receiver && \    
+RUN cd $GOPATH/src/github.com/dewey/webhook-receiver && \
     GO111MODULE=on GOGC=off CGO_ENABLED=1 go build -mod=vendor -v -o /webhook-receiver ./cmd/api/
 
 # multistage
