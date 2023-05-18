@@ -3,14 +3,15 @@ FROM golang:1.20-alpine as builder
 RUN apk add git bash
 
 ENV GO111MODULE=on
+ENV CGO_ENABLED=1
+ENV GOGC=off
 
 # Add our code
 ADD ./ $GOPATH/src/github.com/dewey/webhook-receiver
 
 # build
 WORKDIR $GOPATH/src/github.com/dewey/webhook-receiver
-RUN cd $GOPATH/src/github.com/dewey/webhook-receiver && \
-    GO111MODULE=on GOGC=off CGO_ENABLED=1 go build -mod=vendor -v -o /webhook-receiver ./cmd/api/
+RUN cd $GOPATH/src/github.com/dewey/webhook-receiver && go build -mod=vendor -v -o /webhook-receiver ./cmd/api/
 
 # multistage
 FROM alpine:latest
