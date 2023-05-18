@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
-	"net/http"
-	"os"
-	"strings"
-
+	"github.com/dewey/webhook-receiver/cache"
 	"github.com/dewey/webhook-receiver/feed"
 	"github.com/dewey/webhook-receiver/notification"
 	"github.com/dewey/webhook-receiver/service/hooklistener"
@@ -16,9 +14,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-mastodon"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/peterbourgon/ff/v3"
+	"github.com/pressly/goose/v3"
+	"net/http"
+	"os"
+	"strings"
 )
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 
 type maxBytesHandler struct {
 	h http.Handler
@@ -45,7 +52,7 @@ func main() {
 		mastodonAccessToken      = fs.String("mastodon-access-token", "", "the mastodon access token")
 		mastodonServer           = fs.String("mastodon-server", "", "the mastodon instance you are using")
 		feedURL                  = fs.String("feed-url", "https://annoying.technology/index.xml", "the direct url to the feed index")
-		cacheFilePath            = fs.String("cache-file-path", "cache", "the path to the cache file, to prevent duplicate notifications")
+		cacheDatabasePath        = fs.String("cache-database-path", "webhook-receiver.db", "the path to the cache database, to prevent duplicate notifications")
 		hookToken                = fs.String("hook-token", "changeme", "the secret token for the hook, to prevent other people from hitting the hook")
 	)
 
@@ -69,6 +76,36 @@ func main() {
 	}
 	l = log.With(l, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
+	// Connect to sqlite database, create if it doesn't exist and run available migrations if needed
+	db, err := sqlx.Open("sqlite3", *cacheDatabasePath)
+	if err != nil {
+		level.Error(l).Log("msg", "error opening database", "err", err)
+		return
+	}
+	if err := db.Ping(); err != nil {
+		level.Error(l).Log("msg", "error pinging database", "err", err)
+		return
+	}
+	goose.SetBaseFS(embedMigrations)
+	f, err := embedMigrations.ReadDir("migrations")
+	if err != nil {
+		level.Error(l).Log("msg", "error reading migrations directory", "err", err)
+		return
+	}
+	for _, entry := range f {
+		level.Info(l).Log("msg", fmt.Sprintf("found migration %s", entry.Name()))
+	}
+
+	if err := goose.SetDialect("sqlite"); err != nil {
+		level.Error(l).Log("msg", "error setting dialect for database", "err", err)
+		return
+	}
+
+	if err := goose.Up(db.DB, "migrations"); err != nil {
+		level.Error(l).Log("msg", "error running migrations", "err", err)
+		return
+	}
+
 	var notifiers notification.Notifiers
 	// Set up Twitter client
 	if *twitterConsumerKey != "" && *twitterAccessTokenSecret != "" && *twitterConsumerSecretKey != "" && *twitterAccessToken != "" {
@@ -82,7 +119,7 @@ func main() {
 			ScreenName: *twitterUsername,
 		})
 		if err != nil {
-			level.Error(l).Log("err", "error getting user information from twitter")
+			level.Error(l).Log("msg", "error getting user information from twitter", "err", err)
 			return
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -132,14 +169,19 @@ func main() {
 	})
 
 	fr := feed.NewRepository(l)
-	listenerService := hooklistener.NewService(l, fr, notifiers, *feedURL, *cacheFilePath, *hookToken)
+	cacheRepository, err := cache.NewRepository(l, db)
+	if err != nil {
+		fmt.Println("err", err)
+		return
+	}
+	listenerService := hooklistener.NewService(l, fr, notifiers, cacheRepository, *feedURL, *hookToken)
 
 	r.Mount("/incoming-hooks", hooklistener.NewHandler(*listenerService))
 
 	level.Info(l).Log("msg", fmt.Sprintf("webhook-receiver is running on :%s", *port), "environment", *environment)
 
-	// Set up webserver and and set max file limit to 50MB
-	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
+	// Set up webserver and set max file limit to 50MB
+	err = http.ListenAndServe(fmt.Sprintf(":%s", *port), &maxBytesHandler{h: r, n: (50 * 1024 * 1024)})
 	if err != nil {
 		level.Error(l).Log("err", err)
 		return

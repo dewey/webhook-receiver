@@ -1,9 +1,8 @@
 package hooklistener
 
 import (
-	"bufio"
+	"github.com/dewey/webhook-receiver/cache"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -41,62 +40,31 @@ func webHookHandler(s service) http.HandlerFunc {
 				return
 			}
 
-			f, err := os.OpenFile(s.cacheFilePath, os.O_CREATE|os.O_RDWR, 0644)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
-				return
-			}
-			defer f.Close()
-
-			// Read cache file into map
-			m := make(map[string]time.Time)
-
-			// Add all unique entries of cache file (they should be unique anyway) to map
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				if scanner.Text() == "" {
-					continue
-				}
-				// We assume all past cache entries were already posted on both services
-				for _, notificationService := range []string{"twitter", "mastodon"} {
-					cacheTimeStamp, key, err := s.getCacheKey(notificationService, scanner.Text())
-					if err != nil {
-						level.Error(s.l).Log("err", err)
-						continue
-					}
-
-					// If URL doesn't exist in cache, set cache entry to cacheKey:time.Time in map
-					if _, ok := m[key]; !ok {
-						m[key] = cacheTimeStamp
-					}
-				}
-
-			}
-
-			if err := scanner.Err(); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				level.Error(s.l).Log("err", err)
-				return
-			}
-
 			t := time.Now()
 			for _, notificationService := range s.nr {
-				// If there's a already a post for today in the cache for this service, we do nothing
-				if s.hasPostedToday(m, notificationService.String()) {
+				// If there's already a post for today in the cache for this service, we do nothing.
+				exists, err := s.cr.EntryExists(t, notificationService.String())
+				if err != nil {
+					level.Error(s.l).Log("err", err)
+					continue
+				}
+				if exists {
 					level.Debug(s.l).Log("msg", "there's already a post today, skipping", "notification_service", notificationService.String())
 					continue
 				}
 
-				item, isCached, err := s.getNextUncachedFeedItem(items, notificationService.String(), m)
+				item, isCached, err := s.getNextUncachedFeedItem(items, notificationService.String())
 				if err != nil {
 					level.Error(s.l).Log("err", err)
 					continue
 				}
 				if !isCached {
 					level.Info(s.l).Log("msg", "cache miss, notify", "guid", item.GUID, "notification_service", notificationService.String())
-					_, err := f.WriteString(t.Format("2006-01-02") + ":" + notificationService.String() + ":" + item.GUID + "\n")
-					if err != nil {
+					if err := s.cr.Set(cache.Entry{
+						Key:                 item.GUID,
+						NotificationService: notificationService.String(),
+						Date:                time.Now().Format("2006-01-02"),
+					}); err != nil {
 						level.Error(s.l).Log("err", err)
 						continue
 					}
