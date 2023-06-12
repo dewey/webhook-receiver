@@ -11,7 +11,7 @@ type GitlabWebhookPayload struct {
 
 // IsActionable checks if the webhook is actionable for us, we filter out other hooks we receive and don't need
 func (p GitlabWebhookPayload) IsActionable() bool {
-	if p.ObjectKind == "pipeline" && p.ObjectAttributes.Ref == "master" && p.ObjectAttributes.Status == "success" {
+	if p.ObjectKind == "pipeline" && p.ObjectAttributes.Ref == "main" && p.ObjectAttributes.Status == "success" {
 		return true
 	}
 	return false
